@@ -1,3 +1,5 @@
+/*eslint no-unused-vars: ["error", { "caughtErrorsIgnorePattern": "^e(rror)?$" }]*/
+
 import express from 'express';
 import fs from 'fs';
 import fetch from 'node-fetch';
