@@ -155,10 +155,10 @@ app.get('/heatmap.png', (req, res) => {
 	for(let x = 0; x < 1000; x++) {
 		for(let y = 0; y < 600; y++) {
 			if(map.has([x, y].toString())) {
-				const pseudo = hsv2rgb(0.7 - map.get([x, y].toString()) * 0.7 / maximum, 1, 0.3 + map.get([x, y].toString()) * 0.7 / maximum);
+				const pseudo = hsv2rgb(0.7 - map.get([x, y].toString()) * 0.7 / maximum, 1, 0.65 + map.get([x, y].toString()) * 0.35 / maximum);
 				drawPixel(x, y, pseudo.r, pseudo.g, pseudo.b, 255);
 			} else {
-				drawPixel(x, y, 255, 255, 255, 255);
+				drawPixel(x, y, 0, 0, 0, 255);
 			}
 		}
 	}
