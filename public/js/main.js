@@ -5,6 +5,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 	const uploadImageForm = document.getElementById('uploadImageForm');
 	const imageDropdown = document.getElementById('imageDropdown');
 	const tokenList = document.getElementById('tokenList');
+	$('#hideHeatmap').click(() => {
+		$('#heatmap').toggle();
+	});
 
 	$("#paintProgress").progress({ percent: 0 });
 
@@ -296,7 +299,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 			}
 			else {
 				addLog(`绘画任务启动失败，状态码：${response.status}。`);
-				if (response.status === 401) player.play([ 1 ]);
+				if (response.status === 401) player.play([1]);
 			}
 		} catch (error) {
 			addLog('绘画任务启动失败。');
@@ -318,7 +321,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 				addLog(data.message);
 			}
 			else {
-				player.play([ 1 ]);
+				player.play([1]);
 				addLog(`绘画任务停止失败，状态码：${response.status}。`);
 			}
 		} catch (error) {
@@ -364,4 +367,31 @@ document.addEventListener('DOMContentLoaded', async () => {
 			});
 		}
 	});
+});
+$(document).ready(function () {
+	const imageUrl = '/heatmap.png';
+	const $imageElement = $('#heatmap');
+
+	function updateImage() {
+		$.ajax({
+			url: `${imageUrl}?timestamp=${Date.now()}`,
+			method: 'GET',
+			xhrFields: { responseType: 'blob' },
+			success: function (blob) {
+				const objectUrl = URL.createObjectURL(blob);
+				$imageElement.attr('src', objectUrl);
+				const previousUrl = $imageElement.data('previousUrl');
+				if (previousUrl) {
+					URL.revokeObjectURL(previousUrl);
+				}
+				$imageElement.data('previousUrl', objectUrl);
+			},
+			error: function () {
+				$imageElement.attr('alt', '热力图加载失败');
+			},
+		});
+	}
+
+	updateImage();
+	setInterval(updateImage, 2000);
 });

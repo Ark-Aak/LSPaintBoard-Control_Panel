@@ -62,7 +62,7 @@ app.post('/api/upload-image', upload.single('image'), async (req, res) => {
 			const r = pixels[i];
 			const g = pixels[i + 1];
 			const b = pixels[i + 2];
-			if(channels === 4) {
+			if (channels === 4) {
 				const a = pixels[i + 3];
 				pixelData.push({ r, g, b, a });
 			} else {
@@ -94,7 +94,7 @@ let heatmap = [];
 const heatmap_millseconds = 600 * 1000
 
 setInterval(() => {
-	while(heatmap.length && heatmap[0][0] < Date.now() - heatmap_millseconds) {
+	while (heatmap.length && heatmap[0][0] < Date.now() - heatmap_millseconds) {
 		heatmap.shift();
 	}
 }, 10000);
@@ -124,37 +124,48 @@ app.get('/heatmap.png', (req, res) => {
 
 	const map = new Map();
 	let maximum = 0;
+	const convertRatio = 20;
+	const blockSize = 10;
 
 	heatmap.forEach((item) => {
-		const key = [item[1], item[2]].toString();
-		if(map.has(key)) {
+		const key = [Math.floor(item[1] / convertRatio), Math.floor(item[2] / convertRatio)].toString();
+		if (map.has(key)) {
 			map.set(key, map.get(key) + 1);
-			if(map.get(key) > maximum) {
+			if (map.get(key) > maximum) {
 				maximum = map.get(key);
 			}
 		} else {
 			map.set(key, 1);
-			if(1 > maximum) {
+			if (1 > maximum) {
 				maximum = 1;
 			}
 		}
 	});
 
-	const canvas = createCanvas(1000, 600);
+	const canvas = createCanvas(Math.floor(1000 / convertRatio * blockSize), Math.floor(600 / convertRatio * blockSize));
 	const ctx = canvas.getContext('2d');
-	const canvasData = ctx.getImageData(0, 0, 1000, 600);
+	const canvasData = ctx.getImageData(0, 0, Math.floor(1000 / convertRatio * blockSize), Math.floor(600 / convertRatio * blockSize));
 
-	const drawPixel = (x, y, r, g, b, a) => {
-		const index = (x + y * 1000) * 4;
+	const drawReal = (x, y, r, g, b, a) => {
+		const index = Math.floor(x + y * 1000 / convertRatio * blockSize) * 4;
 		canvasData.data[index + 0] = r;
 		canvasData.data[index + 1] = g;
 		canvasData.data[index + 2] = b;
 		canvasData.data[index + 3] = a;
 	}
 
-	for(let x = 0; x < 1000; x++) {
-		for(let y = 0; y < 600; y++) {
-			if(map.has([x, y].toString())) {
+	const drawPixel = (x, y, r, g, b, a) => {
+		const rx = x * blockSize, ry = y * blockSize;
+		for (let i = 0; i < blockSize; i++) {
+			for (let j = 0; j < blockSize; j++) {
+				drawReal(rx + i, ry + j, r, g, b, a);
+			}
+		}
+	}
+
+	for (let x = 0; x < Math.floor(1000 / convertRatio); x++) {
+		for (let y = 0; y < Math.floor(600 / convertRatio); y++) {
+			if (map.has([x, y].toString())) {
 				const pseudo = hsv2rgb(0.7 - map.get([x, y].toString()) * 0.7 / maximum, 1, 0.65 + map.get([x, y].toString()) * 0.35 / maximum);
 				drawPixel(x, y, pseudo.r, pseudo.g, pseudo.b, 255);
 			} else {
@@ -286,7 +297,7 @@ function connect() {
 					break;
 				}
 				default:
-					const message = `未知的消息类型：${messageType}`;
+					const message = `未知的消息类型：${type}`;
 					broadcastLog(message);
 			}
 		}
@@ -420,7 +431,7 @@ app.post('/api/paintboard/token', async (req, res) => {
 			body,
 		});
 		if (!response.ok || response.status != 200) {
-			return res.status(response.status).send(errorMessage);
+			return res.status(response.status).send('内部服务器错误。');
 		}
 		const data = await response.json();
 		let token = data.data.token;
@@ -533,7 +544,7 @@ async function SdrawTask(imagePath, startX, startY) {
 
 	const getPixelAt = (x, y) => {
 		const index = (y * width + x) * channels; // 每个像素占 channels 个字节（RGB/RGBA）
-		if(channels === 4) {
+		if (channels === 4) {
 			return { r: pixels[index], g: pixels[index + 1], b: pixels[index + 2], a: pixels[index + 3] };
 		} else {
 			return { r: pixels[index], g: pixels[index + 1], b: pixels[index + 2] };
@@ -542,7 +553,7 @@ async function SdrawTask(imagePath, startX, startY) {
 
 	function calculateColorDistance(color1, color2) {
 		// 计算三维距离
-		if(("a" in color1 && color1.a === 0) || ("a" in color2 && color2.a === 0)) {
+		if (("a" in color1 && color1.a === 0) || ("a" in color2 && color2.a === 0)) {
 			return 0;
 		}
 		const r1 = color1.r, g1 = color1.g, b1 = color1.b;
