@@ -1,0 +1,24 @@
+body {
+	padding-top: 20px;
+}
+
+#logs {
+	height: 200px;
+	overflow-y: auto;
+	border: 1px solid #ddd;
+	padding: 10px;
+	background-color: #f9f9f9;
+}
+
+#tokenList {
+	height: 270px;
+	overflow-y: auto;
+	border: 1px solid #ddd;
+	padding: 10px;
+	background-color: #f9f9f9;
+}
+
+.ui.progress .progress {
+	right: 0.2em !important;
+	color: white;
+}

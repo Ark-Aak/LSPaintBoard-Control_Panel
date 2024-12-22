@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Paintboard API Panel</title>
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/semantic-ui/2.4.1/semantic.min.css">
+	<script src="https://cdn.jsdelivr.net/npm/jquery/dist/jquery.min.js"></script>
+	<script src="https://cdn.jsdelivr.net/npm/semantic-ui/dist/semantic.min.js"></script>
+	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/semantic-ui-range/range.min.css">
+	<script src="https://cdn.jsdelivr.net/npm/semantic-ui-range/range.min.js"></script>
+	<link rel="stylesheet" href="/css/style.css">
+	<link href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/css/toastr.min.css" rel="stylesheet" />
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/js/toastr.min.js"></script>
+	<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body>
+	<div class="ui container">
+		<h1 class="ui header">绘板脚本面板</h1>
+		<div class="ui grid">
+			<!-- 左侧：API Actions -->
+			<div class="ten wide column">
+				<!-- Logs Section -->
+				<div class="ui segment">
+					<h2 class="ui header">日志</h2>
+					<div id="logs" class="ui relaxed list"></div>
+				</div>
+				<!-- API Actions Section -->
+				<div class="ui segment">
+					<h2 class="ui header">绘板操作</h2>
+					<!-- Fetch Token -->
+					<form id="fetchTokenForm" class="ui form">
+						<h3>添加 Token</h3>
+						<div class="field">
+							<label>UID</label>
+							<input type="text" id="uid" placeholder="Enter UID">
+						</div>
+						<div class="field">
+							<label>剪贴板</label>
+							<input type="text" id="paste" placeholder="Enter Paste">
+						</div>
+						<button type="submit" class="ui button">添加 Token</button>
+					</form>
+					<!-- Upload Image -->
+					<div class="ui form" style="margin-top: 20px;">
+						<h3>上传图像</h3>
+						<form id="uploadImageForm" class="ui form" enctype="multipart/form-data">
+							<div class="field">
+								<label>图像文件</label>
+								<input type="file" id="image" name="image" accept="image/*">
+							</div>
+							<button type="submit" class="ui button">上传</button>
+						</form>
+					</div>
+				</div>
+				<div class="ui segment">
+					<h2 class="ui header">API 设置</h2>
+					<div class="ui form" style="margin-top: 20px;">
+						<h3 id="tokenUsing">Token 投入数量</h3>
+						<div class="ui range" id="slider-token">
+						</div>
+					</div>
+					<div class="ui form" style="margin-top: 20px;">
+						<h3 id="simValue">相似度阈值</h3>
+						<div class="ui range" id="slider-sim">
+						</div>
+					</div>
+					<div class="ui form" style="margin-top: 20px;">
+						<h3 id="modValue">绘版 CD</h3>
+						<div class="ui range" id="slider-mod">
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<!-- 右侧：图片文件名和Token -->
+			<div class="six wide column">
+				<!-- 图片文件名 -->
+				<div class="ui segment">
+					<!-- Start Drawing Task -->
+					<div class="ui form">
+						<h3>绘画设置</h3>
+						<form id="startDrawForm" class="ui form">
+							<div class="field">
+								<label>起始 X 坐标</label>
+								<input type="number" id="startX" placeholder="输入 起始 X 坐标">
+							</div>
+							<div class="field">
+								<label>起始 Y 坐标</label>
+								<input type="number" id="startY" placeholder="输入 起始 Y 坐标">
+							</div>
+							<div class="field">
+								<label>需要绘画的图片</label>
+								<select id="imageDropdown" class="ui dropdown">
+									<option value="" disabled selected>选择图像...</option>
+								</select>
+							</div>
+							<button type="submit" class="ui button">开始绘画</button>
+							<button id="stopDrawingButton" class="ui red button">停止绘画</button>
+							<button id="refreshImage" class="ui button">刷新图像列表</button>
+						</form>
+					</div>
+				</div>
+
+				<div class="ui segment">
+					<!-- 信息 -->
+					<h3>绘画速率 / 压力</h3>
+					<div id="paintRate">绘画速率： 0 px/s</div>
+					<div id="coloredRate">着色速度： 0 px/s</div>
+					<div id="attackRate">压力大小： 0 px/s</div>
+					<div id="recieveRate">应答速率： 0 req/s</div>
+					<div id="wsBuffer">缓冲大小： 0 B</div>
+					<canvas id="lineChart" width="400" height="260"></canvas>
+				</div>
+				<div class="ui segment">
+					<h3 id="paintProgressTitle">绘画进度 (0/0)</h3>
+					<div class="ui indicating progress" id="paintProgress">
+						<div class="bar">
+							<div class="progress"></div>
+						</div>
+					</div>
+				</div>
+				<!-- Token 列表 -->
+				<div class="ui segment">
+					<h3 class="ui header" id="tokenCount">Tokens</h3>
+					<div id="tokenList" class="ui relaxed list"></div>
+					<button id="readTokensBtn" class="ui button">重新加载 Token 列表</button>
+				</div>
+			</div>
+		</div>
+	</div>
+	<script src="/js/sound.js"></script>
+	<script src="/js/main.js"></script>
+</body>
+<script>
+	toastr.options.progressBar = true;
+	toastr.options.newestOnTop = false;
+	toastr.options.timeOut = 2000;
+</script>
+</html>
