@@ -116,7 +116,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 		const buffer = data.buffer;
 		const queueTotal = data.queueTotal;
 		const queuePos = data.queuePos;
-		if (attackRate > 0 && attackRate >= coloredRate) {
+		if (attackRate > 0 && coloredRate > 1 && attackRate >= coloredRate) {
 			toastr.warning(`压力超过绘画速度，压力 ${attackRate} px/s`, '警告');
 			player.play([3, 2]);
 		}
@@ -296,6 +296,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 			}
 			else {
 				addLog(`绘画任务启动失败，状态码：${response.status}。`);
+				if (response.status === 401) player.play([ 1 ]);
 			}
 		} catch (error) {
 			addLog('绘画任务启动失败。');
@@ -317,6 +318,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 				addLog(data.message);
 			}
 			else {
+				player.play([ 1 ]);
 				addLog(`绘画任务停止失败，状态码：${response.status}。`);
 			}
 		} catch (error) {

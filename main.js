@@ -633,7 +633,7 @@ async function SdrawTask(imagePath, startX, startY) {
 		// for (let i = 1; i <= 20; i++) {
 
 		await loadBoard();
-		// shuffleArray(pointQueue);
+		shuffleArray(pointQueue);
 		broadcastLog(`队列已刷新，目前队列长度：${pointQueue.length}。`);
 		queueTotal = pointQueue.length;
 		queuePos = 0;
