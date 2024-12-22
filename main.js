@@ -152,15 +152,13 @@ app.get('/heatmap.png', (req, res) => {
 		canvasData.data[index + 3] = a;
 	}
 
-	const background = hsv2rgb(0.7, 1, 0.3);
-
 	for(let x = 0; x < 1000; x++) {
 		for(let y = 0; y < 600; y++) {
 			if(map.has([x, y].toString())) {
 				const pseudo = hsv2rgb(0.7 - map.get([x, y].toString()) * 0.7 / maximum, 1, 0.3 + map.get([x, y].toString()) * 0.7 / maximum);
 				drawPixel(x, y, pseudo.r, pseudo.g, pseudo.b, 255);
 			} else {
-				drawPixel(x, y, background.r, background.g, background.b, 255);
+				drawPixel(x, y, 255, 255, 255, 255);
 			}
 		}
 	}
