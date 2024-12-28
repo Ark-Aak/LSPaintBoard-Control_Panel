@@ -198,6 +198,16 @@ wss.on('connection', (client) => {
 	});
 });
 
+function getTime(type) {
+	const date = new Date();
+	if (type === 0) {
+		return date.getTime();
+	}
+	else if (type === 1) {
+		return date.toLocaleTimeString('en-US', { hour12: false });
+	}
+}
+
 // 广播日志
 function broadcastLog(message) {
 	logClients.forEach(client => {
@@ -205,6 +215,7 @@ function broadcastLog(message) {
 			client.send(message);
 		}
 	});
+	console.log(message);
 }
 
 let ws;
@@ -238,14 +249,67 @@ setInterval(() => {
 	reportMsg(JSON.stringify({ paintRate, attackRate, recieveRate, coloredRate, buffer, queueTotal, queuePos }));
 }, 3000);
 
+let board = [];
+
+async function initBoard() {
+	const st = getTime(0);
+	await fetch(`${BASE_URL}/paintboard/getboard`)
+		.then(response => {
+			if (!response.ok) {
+				broadcastLog(`获取绘版信息失败: ${response.status}`);
+				return new ArrayBuffer();
+			}
+			broadcastLog(`绘版信息已返回。`);
+			return response.arrayBuffer();
+		})
+		.then(arrayBuffer => {
+			const byteArray = new Uint8Array(arrayBuffer);
+			for (let y = 0; y < 600; y++) {
+				for (let x = 0; x < 1000; x++) {
+					const idx = (y * 1000 + x) * 3;
+					let r = byteArray[idx], g = byteArray[idx + 1], b = byteArray[idx + 2];
+					const pixel = { r, g, b };
+					board[y][x] = pixel;
+				}
+			}
+		}).catch(error => broadcastLog(`获取绘版信息失败: ${error}`));
+	const ed = getTime(0);
+	broadcastLog(`初始化耗时: ${ed - st} ms`);
+}
+
+for (let y = 0; y < 600; y++) {
+	board[y] = [];
+	for (let x = 0; x < 1000; x++) {
+		board[y][x] = { r: 255, g: 255, b: 255 };
+	}
+}
+
+async function init() {
+	broadcastLog(`正在初始化绘版。`);
+	await initBoard();
+	broadcastLog(`绘版加载完成。`);
+}
+
+app.get('/init', (req, res) => { init(); res.status(200).end(); });
+
 function connect() {
 	broadcastLog("正在连接 WebSocket。");
 	ws = new WebSocket(WS_URL);
 	ws.binaryType = "arraybuffer";
-	ws.onopen = () => {
+	ws.onopen = async () => {
 		const message = 'WebSocket 连接已打开。';
-		console.log(message);
 		broadcastLog(message);
+		await init();
+		if (!status && needRestart) {
+			try {
+				SdrawTask(lstPath, lstStartX, lstStartY);
+				broadcastLog("正在自动重启画图任务。");
+			} catch (e) {
+				broadcastLog("自动重启画图任务失败。");
+			}
+			needRestart = false;
+		}
+		status = true;
 	};
 
 	ws.onmessage = async (event) => {
@@ -262,6 +326,7 @@ function connect() {
 					const colorR = dataView.getUint8(offset + 4);
 					const colorG = dataView.getUint8(offset + 5);
 					const colorB = dataView.getUint8(offset + 6);
+					board[y][x] = { r: colorR, g: colorG, b: colorB };
 					offset += 7;
 					if (processAttack) await processAttack(x, y, colorR, colorG, colorB);
 					heatmap.push([Date.now(), x, y]);
@@ -269,21 +334,6 @@ function connect() {
 				}
 				case 0xfc: {
 					ws.send(new Uint8Array([0xfb]));
-					let message = "";
-					if (!status) message = '成功与服务器握手，连接建立。';
-					else return;
-					if (!status && needRestart) {
-						try {
-							SdrawTask(lstPath, lstStartX, lstStartY);
-							broadcastLog("正在自动重启画图任务。");
-						} catch (e) {
-							broadcastLog("自动重启画图任务失败。");
-						}
-						needRestart = false;
-					}
-					status = true;
-					console.log(message);
-					broadcastLog(message);
 					break;
 				}
 				case 0xff: {
@@ -299,15 +349,14 @@ function connect() {
 					break;
 				}
 				default:
-					const message = `未知的消息类型：${type}`;
+					const message = `未知的消息类型: ${type}`;
 					broadcastLog(message);
 			}
 		}
 	};
 
 	ws.onerror = (err) => {
-		const message = `WebSocket 出错：${err.message}。`;
-		console.error(message);
+		const message = `WebSocket 出错: ${err.message}。`;
 		stopDrawing = true;
 		isDrawing = false;
 		broadcastLog(message);
@@ -316,7 +365,6 @@ function connect() {
 	ws.onclose = (err) => {
 		const reason = err.reason ? err.reason : "Unknown";
 		const message = `WebSocket 已经关闭 (${err.code}: ${reason})，尝试重连。`;
-		console.log(message);
 		if (isDrawing) needRestart = true;
 		stopDrawing = true;
 		isDrawing = false;
@@ -390,7 +438,7 @@ async function paint(uid, token, r, g, b, nowX, nowY) {
 				coloredCnt++;
 				break;
 			case 0xed: // invalid token
-				broadcastLog(`失效的 Token：${token}#${uid}。`);
+				broadcastLog(`失效的 Token: ${token}#${uid}。`);
 				break;
 		}
 	});
@@ -453,37 +501,47 @@ app.post('/api/paintboard/token', async (req, res) => {
 // 读取 tokens 文件
 
 let fTokens = [];
-let idx = 0, fmax = 0, sim = 5, mod = 30000;
+let idx = 0;
+let info = { fmax: 0, sim: 5, mod: 30000, strategy: { cd: 'explosive', order: 'random', priority: 'none' } };
 
 async function getNextToken() {
-	await delay(Math.ceil(mod / fmax));
+	if (info.strategy.cd === 'amortized') await delay(Math.ceil(info.mod / info.fmax));
 	let res = fTokens[idx];
 	idx += 1;
-	if (idx >= fmax) idx = 0;
+	if (idx >= info.fmax) {
+		idx = 0;
+		if (info.strategy.cd === 'explosive') await delay(info.mod);
+	}
 	return res;
 }
 
 app.get('/api/getinfo', (req, res) => {
-	res.status(200).send({ fmax, sim, mod });
+	res.status(200).send(info);
 });
 
-app.post('/api/setfmax', (req, res) => {
-	const { new_fmax } = req.body;
-	fmax = new_fmax;
-	res.status(200).send("ok");
-});
+function createNormalApi(name) {
+	app.post('/api/' + name, (req, res) => {
+		const { val } = req.body;
+		info[name] = val;
+		res.status(200).end();
+	});
+}
 
-app.post('/api/setsimval', (req, res) => {
-	const { new_simval } = req.body;
-	sim = new_simval;
-	res.status(200).send("ok");
-});
+createNormalApi('fmax');
+createNormalApi('sim');
+createNormalApi('mod');
 
-app.post('/api/setmod', (req, res) => {
-	const { new_mod } = req.body;
-	mod = new_mod;
-	res.status(200).send("ok");
-});
+function createStrategyApi(name) {
+	app.post('/api/strategy/' + name, (req, res) => {
+		const { val } = req.body;
+		info.strategy[name] = val;
+		res.status(200).end();
+	});
+}
+
+createStrategyApi('cd');
+createStrategyApi('order');
+createStrategyApi('priority');
 
 app.get('/api/tokens', (req, res) => {
 	try {
@@ -504,7 +562,7 @@ app.get('/api/tokens', (req, res) => {
 			}
 		}).filter(item => item !== null);
 		fTokens = tokens;
-		if (fmax == 0) fmax = tokens.length;
+		if (info.fmax == 0) info.fmax = tokens.length;
 		res.json(tokens);
 	} catch (error) {
 		res.status(500).send('内部服务器错误。');
@@ -531,7 +589,9 @@ let pointQueue = [];
 
 async function SdrawTask(imagePath, startX, startY) {
 	// 绘画任务的主函数
-
+	info.imagePath = imagePath.split('\\')[1];
+	info.startX = startX;
+	info.startY = startY;
 	isDrawing = true;
 	stopDrawing = false;
 
@@ -542,7 +602,7 @@ async function SdrawTask(imagePath, startX, startY) {
 	const pixels = await image.raw().toBuffer();
 	const xL = startX, xR = startX + width - 1;
 	const yL = startY, yR = startY + height - 1;
-	broadcastLog(`图像位置：[(${xL}, ${yL}), (${xR}, ${yR})]`);
+	broadcastLog(`图像位置: [(${xL}, ${yL}), (${xR}, ${yR})]`);
 
 	const getPixelAt = (x, y) => {
 		const index = (y * width + x) * channels; // 每个像素占 channels 个字节（RGB/RGBA）
@@ -573,29 +633,16 @@ async function SdrawTask(imagePath, startX, startY) {
 
 	async function loadBoard() {
 		// 加载绘版上的错误像素
-		await fetch(`${BASE_URL}/paintboard/getboard`)
-			.then(response => {
-				if (!response.ok) {
-					broadcastLog(`获取绘版信息失败：${response.status}`);
-					return new ArrayBuffer();
-				}
-				return response.arrayBuffer();
-			})
-			.then(arrayBuffer => {
-				const byteArray = new Uint8Array(arrayBuffer);
-				for (let y = 0; y < 600; y++) {
-					for (let x = 0; x < 1000; x++) {
-						if (x < xL || x > xR) continue;
-						if (y < yL || y > yR) continue;
-						const idx = (y * 1000 + x) * 3;
-						let r = byteArray[idx], g = byteArray[idx + 1], b = byteArray[idx + 2];
-						const pixel = { r, g, b };
-						const realPixel = getPixelAt(x - xL, y - yL);
-						if (calculateColorDistance(pixel, realPixel) <= sim) continue;
-						pointQueue.push({ x: x - xL, y: y - yL });
-					}
-				}
-			}).catch(error => broadcastLog(`获取绘版信息失败：${error}`));
+		for (let y = 0; y < 600; y++) {
+			for (let x = 0; x < 1000; x++) {
+				if (x < xL || x > xR) continue;
+				if (y < yL || y > yR) continue;
+				const pixel = board[y][x];
+				const realPixel = getPixelAt(x - xL, y - yL);
+				if (calculateColorDistance(pixel, realPixel) <= info.sim) continue;
+				pointQueue.push({ x: x - xL, y: y - yL });
+			}
+		}
 	}
 
 	processAttack = async (x, y, r, g, b) => {
@@ -604,7 +651,7 @@ async function SdrawTask(imagePath, startX, startY) {
 		let realX = x - startX, realY = y - startY;
 		const realPixel = { r, g, b };
 		const correctPixel = getPixelAt(realX, realY);
-		if (calculateColorDistance(realPixel, correctPixel) <= sim) {
+		if (calculateColorDistance(realPixel, correctPixel) <= info.sim) {
 			return;
 		}
 		// const tk = await getNextToken();
@@ -618,34 +665,27 @@ async function SdrawTask(imagePath, startX, startY) {
 		return Math.floor(Math.random() * (max - min + 1)) + min;
 	}
 
+	function processStop() {
+		queuePos = 0;
+		queueTotal = 0;
+		isDrawing = false; // 停止任务
+		info.imagePath = null;
+		info.startX = null;
+		info.startY = null;
+		broadcastLog('绘画任务已停止。');
+	}
+
 	const drawTask = async () => {
 		if (stopDrawing) {
-			queuePos = 0;
-			queueTotal = 0;
-			isDrawing = false; // 停止任务
-			broadcastLog('绘画任务已停止。');
+			processStop();
 			return;
 		}
-		/*
-		for (let y = 0; y < height; y++) {
-			for (let x = 0; x < width; x++) {
-				let px = getRandomInt(0, width - 1), py = getRandomInt(0, height - 1);
-				const pixel = getPixelAt(px, py);
-				const tk = await getNextToken();
-				paint(tk.uid, tk.token, pixel.r, pixel.g, pixel.b, px + startX, py + startY);
-				if (stopDrawing) {
-					isDrawing = false;
-					broadcastLog('绘画任务已停止。');
-					return;
-				}
-			}
-		}
-		*/
-		// for (let i = 1; i <= 20; i++) {
-
 		await loadBoard();
-		shuffleArray(pointQueue);
-		broadcastLog(`队列已刷新，目前队列长度：${pointQueue.length}。`);
+		if (info.strategy.order === 'random') shuffleArray(pointQueue);
+		if (info.strategy.priority === 'alpha' && channels === 4) {
+			pointQueue.sort((a, b) => getPixelAt(b.x, b.y).a - getPixelAt(a.x, a.y).a);
+		}
+		broadcastLog(`队列已刷新，目前队列长度: ${pointQueue.length}。`);
 		queueTotal = pointQueue.length;
 		queuePos = 0;
 		for (let pos of pointQueue) {
@@ -653,16 +693,16 @@ async function SdrawTask(imagePath, startX, startY) {
 			const tk = await getNextToken();
 			paint(tk.uid, tk.token, pixel.r, pixel.g, pixel.b, pos.x + startX, pos.y + startY);
 			if (stopDrawing) {
-				isDrawing = false;
-				broadcastLog('绘画任务已停止。');
-				queueTotal = 0;
-				queuePos = 0;
+				processStop();
 				return;
 			}
 			queuePos += 1;
 		}
+		if (pointQueue.length <= info.fmax) {
+			broadcastLog(`压力过小，等待中...`);
+			await delay(3000);
+		}
 		pointQueue = [];
-		// }
 		setImmediate(drawTask); // 重新启动绘画任务
 	};
 	drawTask();
@@ -710,13 +750,13 @@ app.post('/api/stop-draw', (req, res) => {
 });
 
 server.listen(PORT, () => {
-	console.log(`Server is running on http://localhost:${PORT}`);
+	console.log(`日志 WS 地址: ws://localhost:${PORT}`);
 });
 
 app.listen(WEBPORT, () => {
-	console.log(`WebServer is running on http://localhost:${WEBPORT}`);
+	console.log(`Web 地址: http://localhost:${WEBPORT}`);
 });
 
 reportServer.listen(DRAWPORT, () => {
-	console.log(`Reporting server is running on http://localhost:${DRAWPORT}`);
+	console.log(`信息 WS 地址: ws://localhost:${DRAWPORT}`);
 });

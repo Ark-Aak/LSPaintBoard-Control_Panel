@@ -5,7 +5,7 @@ class AudioPlayer {
 		this.currentIndex = 0; // 当前播放的音频索引
 		this.playlist = []; // 要播放的下标数组
 		this.isPlaying = false;
-
+		this.playFlag = false;
 		this.preloadAudio();
 	}
 
@@ -22,16 +22,18 @@ class AudioPlayer {
 		if (index >= 0 && index < this.audioObjects.length) {
 			const audio = this.audioObjects[index];
 			audio.currentTime = 0;
-			audio.play();
-			this.isPlaying = true;
-			audio.onended = () => {
-				this.currentIndex++;
-				if (this.currentIndex < this.playlist.length) {
-					this.playSingle(this.playlist[this.currentIndex]);
-				} else {
-					this.isPlaying = false;
-				}
-			};
+			if (this.playFlag === true) {
+				audio.play();
+				this.isPlaying = true;
+				audio.onended = () => {
+					this.currentIndex++;
+					if (this.currentIndex < this.playlist.length) {
+						this.playSingle(this.playlist[this.currentIndex]);
+					} else {
+						this.isPlaying = false;
+					}
+				};
+			}
 		} else {
 			console.error(`无效的音频索引：${index}`);
 		}
@@ -69,9 +71,20 @@ const audioFiles = [
 
 const player = new AudioPlayer(audioFiles);
 
-document.addEventListener('click', (event) => {
-	const target = event.target;
-	if (target.tagName.toLowerCase() === 'button') {
-		player.play([ 5 ]);
+document.addEventListener('click', () => {
+	if (player.playFlag === false) {
+		player.playFlag = true;
+		toastr.success('音频模块已启动', '成功');
 	}
+});
+document.addEventListener('touchend', () => {
+	if (player.playFlag === false) {
+		player.playFlag = true;
+		toastr.success('音频模块已启动', '成功');
+	}
+});
+
+document.addEventListener('click', (event) => {
+	player.stop();
+	player.play([ 5 ]);
 });

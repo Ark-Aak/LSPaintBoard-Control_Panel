@@ -34,3 +34,7 @@ body {
 #hideHeatmap {
 	margin-left: 15px;
 }
+
+.info {
+	color: gray;
+}

@@ -3,26 +3,20 @@ document.addEventListener('DOMContentLoaded', async () => {
 	const fetchTokenForm = document.getElementById('fetchTokenForm');
 	const readTokensBtn = document.getElementById('readTokensBtn');
 	const uploadImageForm = document.getElementById('uploadImageForm');
-	const imageDropdown = document.getElementById('imageDropdown');
+	const imagePath = document.getElementById('imagePath');
 	const tokenList = document.getElementById('tokenList');
 	$('#hideHeatmap').click(() => {
 		$('#heatmap').toggle();
 	});
-
 	$("#paintProgress").progress({ percent: 0 });
-
 	const logSocket = new WebSocket(`ws://${window.location.hostname}:3000`);
 	logSocket.onmessage = (event) => {
 		addLog(event.data);
 	};
-
 	const reportSocket = new WebSocket(`ws://${window.location.hostname}:3002`);
-
 	const ctx = document.getElementById('lineChart').getContext('2d');
-
-	// 定义折线图的数据结构
 	let chartdata = {
-		labels: [-30, -27, -24, -21, -18, -15, -12, -9, -6, -3, 0], // 时间轴标签
+		labels: [-30, -27, -24, -21, -18, -15, -12, -9, -6, -3, 0],
 		datasets: [
 			{
 				label: '着色速率',
@@ -50,8 +44,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 			}
 		]
 	};
-
-	// 创建 Chart.js 图表对象
 	const config = {
 		type: 'line',
 		data: chartdata,
@@ -102,14 +94,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 			},
 		},
 	};
-
 	const chart = new Chart(ctx, config);
-
 	function updateData(id, val) {
 		while (chartdata.datasets[id].data.length > 10) chartdata.datasets[id].data.shift();
 		chartdata.datasets[id].data.push(val);
 	}
-
 	reportSocket.onmessage = (event) => {
 		const data = JSON.parse(event.data);
 		const paintRate = parseFloat(data.paintRate.toFixed(2));
@@ -142,6 +131,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 		const logItem = document.createElement('div');
 		logItem.className = 'item';
 		logItem.textContent = message;
+		if (logsContainer.children.length > 50) logsContainer.replaceChildren()
 		logsContainer.appendChild(logItem);
 		logsContainer.scrollTop = logsContainer.scrollHeight;
 	}
@@ -152,16 +142,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 			const response = await fetch('/api/images');
 			if (response.ok) {
 				const images = await response.json();
-				imageDropdown.innerHTML = '<option value="" disabled selected>选择图像...</option>';
+				imagePath.innerHTML = '<option value="" disabled selected>选择图像...</option>';
 				images.forEach((image) => {
 					const option = document.createElement('option');
 					option.value = image;
 					option.textContent = image;
-					imageDropdown.appendChild(option);
+					imagePath.appendChild(option);
 				});
 			}
 			else {
-				addLog(`图片列表获取失败，状态码：${response.status}。`);
+				addLog(`图片列表获取失败，状态码: ${response.status}。`);
 			}
 		} catch (error) {
 			addLog('图片列表获取失败。');
@@ -169,11 +159,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 		}
 	}
 
+	let initalData;
+
 	async function getInfo() {
-		return (await fetch('/api/getinfo')).json();
+		if (initalData) return initalData;
+		initalData = (await fetch('/api/getinfo')).json();
+		return initalData;
 	}
 
-	// Fetch and display tokens
 	async function fetchTokens() {
 		try {
 			const response = await fetch('/api/tokens');
@@ -196,16 +189,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 					onChange: async function (value) {
 						const tokenUsed = document.getElementById('tokenUsing');
 						tokenUsed.innerText = `Token 投入数量 (${value})`;
-						await fetch('/api/setfmax', {
+						await fetch('/api/fmax', {
 							method: 'POST',
 							headers: { 'Content-Type': 'application/json' },
-							body: JSON.stringify({ new_fmax: value }),
+							body: JSON.stringify({ val: value }),
 						});
 					}
 				});
 			}
 			else {
-				addLog(`获取 Token 列表失败，状态码：${response.status}。`);
+				addLog(`获取 Token 列表失败，状态码: ${response.status}。`);
 			}
 		} catch (error) {
 			addLog('获取 Token 列表失败。');
@@ -227,11 +220,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 			});
 			if (response.ok) {
 				const data = await response.json();
-				addLog(`已添加 Token：${data.data.token}#${uid}。`);
+				addLog(`已添加 Token: ${data.data.token}#${uid}。`);
 				fetchTokens();
 			}
 			else {
-				addLog(`Token 获取失败，状态码：${response.status}。`);
+				addLog(`Token 获取失败，状态码: ${response.status}。`);
 			}
 		} catch (error) {
 			addLog('Token 获取失败。');
@@ -239,7 +232,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 		}
 	});
 
-	// Upload Image
 	uploadImageForm.addEventListener('submit', async (e) => {
 		e.preventDefault();
 		const formData = new FormData(uploadImageForm);
@@ -254,11 +246,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 					addLog(data.message);
 					return;
 				}
-				addLog(`图像上传成功，大小：${data.width}x${data.height}。`);
+				addLog(`图像上传成功，大小: ${data.width}x${data.height}。`);
 				await fetchImages(); // 更新图片列表
 			}
 			else {
-				addLog(`图像上传失败，状态码：${response.status}。`);
+				addLog(`图像上传失败，状态码: ${response.status}。`);
 			}
 		} catch (error) {
 			addLog('图像上传失败。');
@@ -266,26 +258,22 @@ document.addEventListener('DOMContentLoaded', async () => {
 		}
 	});
 
-	// Initial fetch
 	fetchImages();
 	fetchTokens();
 
 	readTokensBtn.addEventListener('click', fetchTokens); // 刷新 token 列表
 	const startDrawForm = document.getElementById('startDrawForm');
 
-	// Function to start drawing task
 	startDrawForm.addEventListener('submit', async (e) => {
 		e.preventDefault();
 		const startX = parseInt(document.getElementById('startX').value);
 		const startY = parseInt(document.getElementById('startY').value);
-		const imageName = document.getElementById('imageDropdown').value;
+		const imageName = document.getElementById('imagePath').value;
 
 		if (startX < 0 || startX > 1000 || startY < 0 || startY > 600 || !imageName) {
 			addLog('无效的图像或起始坐标。');
 			return;
 		}
-
-		// Send request to start drawing
 		try {
 			const response = await fetch('/api/start-draw', {
 				method: 'POST',
@@ -298,7 +286,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 				addLog(data.message);
 			}
 			else {
-				addLog(`绘画任务启动失败，状态码：${response.status}。`);
+				addLog(`绘画任务启动失败，状态码: ${response.status}。`);
 				if (response.status === 401) player.play([1]);
 			}
 		} catch (error) {
@@ -308,7 +296,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 	});
 	const stopDrawingButton = document.getElementById('stopDrawingButton');
 
-	// 停止绘画任务
 	stopDrawingButton.addEventListener('click', async (e) => {
 		e.preventDefault();
 		try {
@@ -322,7 +309,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 			}
 			else {
 				player.play([1]);
-				addLog(`绘画任务停止失败，状态码：${response.status}。`);
+				addLog(`绘画任务停止失败，状态码: ${response.status}。`);
 			}
 		} catch (error) {
 			addLog('绘画任务停止失败。');
@@ -344,10 +331,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 		onChange: async function (value) {
 			const simValue = document.getElementById('simValue');
 			simValue.innerText = `相似度阈值 (${value})`;
-			await fetch('/api/setsimval', {
+			await fetch('/api/sim', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ new_simval: value }),
+				body: JSON.stringify({ val: value }),
 			});
 		}
 	});
@@ -360,38 +347,45 @@ document.addEventListener('DOMContentLoaded', async () => {
 		onChange: async function (value) {
 			const simValue = document.getElementById('modValue');
 			simValue.innerText = `绘版 CD (${value})`;
-			await fetch('/api/setmod', {
+			await fetch('/api/mod', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ new_mod: value }),
+				body: JSON.stringify({ val: value }),
 			});
 		}
 	});
-});
-$(document).ready(function () {
-	const imageUrl = '/heatmap.png';
-	const $imageElement = $('#heatmap');
 
-	function updateImage() {
-		$.ajax({
-			url: `${imageUrl}?timestamp=${Date.now()}`,
-			method: 'GET',
-			xhrFields: { responseType: 'blob' },
-			success: function (blob) {
-				const objectUrl = URL.createObjectURL(blob);
-				$imageElement.attr('src', objectUrl);
-				const previousUrl = $imageElement.data('previousUrl');
-				if (previousUrl) {
-					URL.revokeObjectURL(previousUrl);
-				}
-				$imageElement.data('previousUrl', objectUrl);
-			},
-			error: function () {
-				$imageElement.attr('alt', '热力图加载失败');
-			},
+	function bindStrategyApi(name) {
+		$("#strategy_" + name).on('change', async (event) => {
+			const val = event.target.value;
+			await fetch('/api/strategy/' + name, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ val })
+			});
 		});
 	}
 
-	updateImage();
-	setInterval(updateImage, 2000);
+	bindStrategyApi('cd');
+	bindStrategyApi('order');
+	bindStrategyApi('priority');
+
+	async function initStrategySelect(name) {
+		const val = (await getInfo());
+		$('#strategy_' + name).val(val.strategy[name]);
+		$('#strategy_' + name).trigger('change');
+	}
+
+	await initStrategySelect('cd');
+	await initStrategySelect('order');
+	await initStrategySelect('priority');
+
+	async function initInputBox(name) {
+		$('#' + name).val((await getInfo())[name]);
+		$('#' + name).trigger('change');
+	}
+
+	initInputBox('imagePath');
+	initInputBox('startX');
+	initInputBox('startY');
 });
