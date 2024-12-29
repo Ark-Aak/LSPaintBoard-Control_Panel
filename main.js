@@ -477,7 +477,7 @@ app.post('/api/paintboard/token', async (req, res) => {
 		return res.status(400).send(errorMessage);
 	}
 	try {
-		const body = JSON.stringify({ uid, paste });
+		const body = JSON.stringify({ uid: parseInt(uid), paste });
 		const response = await fetch(`${BASE_URL}/auth/gettoken`, {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
