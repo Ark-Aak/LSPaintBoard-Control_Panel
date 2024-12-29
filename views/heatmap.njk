@@ -1,0 +1,27 @@
+{% include 'header.njk' %}
+
+<div class="ui container">
+	<div class="ui grid">
+		<div class="ten wide column">
+			<div class="ui segment">
+				<canvas id="heatmap" class="heatlist"></canvas>
+			</div>
+		</div>
+		<div class="six wide column">
+			<div class="ui segment">
+				<h2> 区域热力查询 </h2>
+				<div id="first">左上坐标: 未选中</div>
+				<div id="second">右下坐标: 未选中</div>
+				<h3 id="timeValue">查询时间</h3>
+				<div class="ui range" id="time"></div>
+				<button class="ui button" style="margin-top: 10px;" id="query">查询</button>
+			</div>
+			<div class="ui segment" style="display: none" id="result_div">
+				<h3> 查询结果 </h3>
+				<div id="result"> 近 0s 在选中区域中进行了 0 次绘画。 </div>
+			</div>
+		</div>
+	</div>
+</div>
+<script src="/js/heatlist.js"></script>
+{% include 'footer.njk' %}

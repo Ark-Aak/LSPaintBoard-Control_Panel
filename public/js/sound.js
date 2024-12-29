@@ -74,13 +74,11 @@ const player = new AudioPlayer(audioFiles);
 document.addEventListener('click', () => {
 	if (player.playFlag === false) {
 		player.playFlag = true;
-		toastr.success('音频模块已启动', '成功');
 	}
 });
 document.addEventListener('touchend', () => {
 	if (player.playFlag === false) {
 		player.playFlag = true;
-		toastr.success('音频模块已启动', '成功');
 	}
 });
 

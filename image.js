@@ -9,14 +9,15 @@ function removeColorToTransparent(imageBuffer, color) {
 		.then(({ data, info }) => {
 			const { width, height, channels } = info;
 			const colorRGB = { r: color[0], g: color[1], b: color[2] };
-
+			let cnt = 0;
 			for (let i = 0; i < data.length; i += channels) {
 				const r = data[i], g = data[i + 1], b = data[i + 2];
 				if (r === colorRGB.r && g === colorRGB.g && b === colorRGB.b) {
 					data[i + 3] = 0;
 				}
+				else cnt++;
 			}
-
+			console.log("剩余像素：", cnt);
 			return sharp(data, { raw: { width, height, channels } })
 				.ensureAlpha()
 				.png()

@@ -101,6 +101,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 	}
 	reportSocket.onmessage = (event) => {
 		const data = JSON.parse(event.data);
+		if (data.type !== 'data_view') return;
 		const paintRate = parseFloat(data.paintRate.toFixed(2));
 		const attackRate = parseFloat(data.attackRate.toFixed(2));
 		const recieveRate = parseFloat(data.recieveRate.toFixed(2));

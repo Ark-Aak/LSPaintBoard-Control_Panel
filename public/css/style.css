@@ -23,12 +23,17 @@ body {
 	color: white;
 }
 
-#heatmap {
+.heatmap {
 	width: 100%;
     height: auto;
     border: 5px solid #000000;
     border-radius: 10px;      /* 边角圆润 */
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); /* 添加阴影效果 */
+}
+
+.heatlist {
+	width: 100%;
+    height: auto;
 }
 
 #hideHeatmap {

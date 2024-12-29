@@ -90,6 +90,10 @@ app.get('/', (req, res) => {
 	res.render('index.njk');
 });
 
+app.get('/heatmap', (req, res) => {
+	res.render('heatmap.njk');
+});
+
 import { createCanvas } from 'canvas';
 
 let heatmap = [];
@@ -101,7 +105,7 @@ setInterval(() => {
 	}
 }, 10000);
 
-app.get('/heatmap.png', (req, res) => {
+function generateHeatmap() {
 	const hsv2rgb = (h, s, v) => {
 		var r, g, b, i, f, p, q, t;
 		i = Math.floor(h * 6);
@@ -127,22 +131,40 @@ app.get('/heatmap.png', (req, res) => {
 	const map = new Map();
 	let maximum = 0;
 	const convertRatio = 20;
-	const blockSize = 10;
 
 	heatmap.forEach((item) => {
 		const key = [Math.floor(item[1] / convertRatio), Math.floor(item[2] / convertRatio)].toString();
 		if (map.has(key)) {
 			map.set(key, map.get(key) + 1);
-			if (map.get(key) > maximum) {
-				maximum = map.get(key);
-			}
 		} else {
 			map.set(key, 1);
-			if (1 > maximum) {
-				maximum = 1;
+		}
+		maximum = Math.max(maximum, map.get(key));
+	});
+
+	const logMax = Math.log10(maximum + 1);
+
+	let list = [];
+
+	for (let x = 0; x < Math.floor(1000 / convertRatio); x++) {
+		for (let y = 0; y < Math.floor(600 / convertRatio); y++) {
+			if (map.has([x, y].toString())) {
+				const rawValue = map.get([x, y].toString());
+				const normalizedValue = Math.log10(rawValue + 1) / logMax; // 对数归一化
+				const pseudo = hsv2rgb(0.7 - normalizedValue * 0.7, 1, 0.65 + normalizedValue * 0.35);
+				list.push([x, y, pseudo.r, pseudo.g, pseudo.b, 255]);
+			} else {
+				list.push([x, y, 0, 0, 0, 255]);
 			}
 		}
-	});
+	}
+
+	return list;
+}
+
+app.get('/heatmap.png', (req, res) => {
+	const convertRatio = 20;
+	const blockSize = 10;
 
 	const canvas = createCanvas(Math.floor(1000 / convertRatio * blockSize), Math.floor(600 / convertRatio * blockSize));
 	const ctx = canvas.getContext('2d');
@@ -154,7 +176,7 @@ app.get('/heatmap.png', (req, res) => {
 		canvasData.data[index + 1] = g;
 		canvasData.data[index + 2] = b;
 		canvasData.data[index + 3] = a;
-	}
+	};
 
 	const drawPixel = (x, y, r, g, b, a) => {
 		const rx = x * blockSize, ry = y * blockSize;
@@ -163,24 +185,26 @@ app.get('/heatmap.png', (req, res) => {
 				drawReal(rx + i, ry + j, r, g, b, a);
 			}
 		}
-	}
-
-	for (let x = 0; x < Math.floor(1000 / convertRatio); x++) {
-		for (let y = 0; y < Math.floor(600 / convertRatio); y++) {
-			if (map.has([x, y].toString())) {
-				const pseudo = hsv2rgb(0.7 - map.get([x, y].toString()) * 0.7 / maximum, 1, 0.65 + map.get([x, y].toString()) * 0.35 / maximum);
-				drawPixel(x, y, pseudo.r, pseudo.g, pseudo.b, 255);
-			} else {
-				drawPixel(x, y, 0, 0, 0, 255);
-			}
-		}
-	}
-
+	};
+	const data = generateHeatmap();
+	for (let point of data) drawPixel(point[0], point[1], point[2], point[3], point[4], point[5]);
 	ctx.putImageData(canvasData, 0, 0);
-
 	const imageBuffer = canvas.toBuffer('image/png');
-
 	res.setHeader('Content-Type', 'image/png').send(imageBuffer);
+});
+
+app.get('/heatlist', (req, res) => res.status(200).send(generateHeatmap()));
+app.post('/queryheat', (req, res) => {
+	const { time, lx, ly, rx, ry } = req.body;
+	let cnt = 0;
+	heatmap.forEach((item) => {
+		let x = item[1], y = item[2], tim = item[0];
+		if (x < lx || x > rx) return;
+		if (y < ly || y > ry) return;
+		if (tim < Date.now() - time * 1000) return;
+		cnt++;
+	});
+	res.status(200).send(cnt.toString());
 });
 
 import { WebSocketServer } from 'ws';
@@ -246,8 +270,12 @@ setInterval(() => {
 	paintCnt = 0;
 	recieveCnt = 0;
 	coloredCnt = 0;
-	reportMsg(JSON.stringify({ paintRate, attackRate, recieveRate, coloredRate, buffer, queueTotal, queuePos }));
+	reportMsg(JSON.stringify({ type: 'data_view', paintRate, attackRate, recieveRate, coloredRate, buffer, queueTotal, queuePos }));
 }, 3000);
+
+setInterval(() => {
+	reportMsg(JSON.stringify({ type: 'heatlist', data: generateHeatmap() }));
+}, 2000);
 
 let board = [];
 
