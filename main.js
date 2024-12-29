@@ -440,6 +440,9 @@ async function paint(uid, token, r, g, b, nowX, nowY) {
 			case 0xed: // invalid token
 				broadcastLog(`失效的 Token: ${token}#${uid}。`);
 				break;
+			case 0xee:
+				broadcastLog(`Token ${token}#${uid} 冷却中。`);
+				break;
 		}
 	});
 }
