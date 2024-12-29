@@ -1,0 +1,203 @@
+{% include 'header.njk' %}
+<div class="ui container">
+	<div class="ui grid">
+		<!-- 左侧：API Actions -->
+		<div class="ten wide column">
+			<!-- Logs Section -->
+			<div class="ui segment">
+				<h2 class="ui header">日志</h2>
+				<div id="logs" class="ui relaxed list"></div>
+			</div>
+			<div class="ui segment">
+				<h2 class="ui header">热力图 <button id="hideHeatmap" class="ui button">显示/隐藏热力图</button>
+				</h2>
+				<img id="heatmap" alt="正在加载热力图..."/>
+			</div>
+			<!-- API Actions Section -->
+			<div class="ui segment">
+				<h2 class="ui header">绘板操作</h2>
+				<!-- Fetch Token -->
+				<form id="fetchTokenForm" class="ui form">
+					<h3>添加 Token</h3>
+					<div class="field">
+						<label>UID</label>
+						<input type="text" id="uid" placeholder="Enter UID">
+					</div>
+					<div class="field">
+						<label>剪贴板</label>
+						<input type="text" id="paste" placeholder="Enter Paste">
+					</div>
+					<button type="submit" class="ui button">添加 Token</button>
+				</form>
+				<!-- Upload Image -->
+				<div class="ui form" style="margin-top: 20px;">
+					<h3>上传图像</h3>
+					<form id="uploadImageForm" class="ui form" enctype="multipart/form-data">
+						<div class="field">
+							<label>图像文件</label>
+							<input type="file" id="image" name="image" accept="image/*">
+						</div>
+						<button type="submit" class="ui button">上传</button>
+					</form>
+				</div>
+			</div>
+			<div class="ui segment">
+				<h2 class="ui header">API 设置</h2>
+				<div class="ui form" style="margin-top: 20px;">
+					<h3 id="tokenUsing">Token 投入数量</h3>
+					<div class="ui range" id="slider-token"></div>
+				</div>
+				<div class="ui form" style="margin-top: 20px;">
+					<h3 id="simValue">相似度阈值</h3>
+					<div class="ui range" id="slider-sim"></div>
+				</div>
+				<div class="ui form" style="margin-top: 20px;">
+					<h3 id="modValue">绘版 CD</h3>
+					<div class="ui range" id="slider-mod"></div>
+				</div>
+			</div>
+		</div>
+
+		<!-- 右侧：图片文件名和Token -->
+		<div class="six wide column">
+			<!-- 图片文件名 -->
+			<div class="ui segment">
+				<!-- Start Drawing Task -->
+				<div class="ui form">
+					<h3>绘画设置</h3>
+					<form id="startDrawForm">
+						<div class="field">
+							<label>起始 X 坐标</label>
+							<input type="number" id="startX" placeholder="输入 起始 X 坐标">
+						</div>
+						<div class="field">
+							<label>起始 Y 坐标</label>
+							<input type="number" id="startY" placeholder="输入 起始 Y 坐标">
+						</div>
+						<div class="field">
+							<label>需要绘画的图片</label>
+							<select id="imagePath" class="ui dropdown">
+								<option value="" disabled selected>选择图像...</option>
+							</select>
+						</div>
+						<button type="submit" class="ui button">开始绘画</button>
+						<button id="stopDrawingButton" class="ui red button">停止绘画</button>
+						<button id="refreshImage" class="ui button">刷新图像列表</button>
+					</form>
+				</div>
+			</div>
+
+			<div class="ui segment">
+				<!-- 信息 -->
+				<h3>绘画速率 / 压力</h3>
+				<div id="paintRate">绘画速率： 0 px/s</div>
+				<div id="coloredRate">着色速度： 0 px/s</div>
+				<div id="attackRate">压力大小： 0 px/s</div>
+				<div id="recieveRate">应答速率： 0 req/s</div>
+				<div id="wsBuffer">缓冲大小： 0 B</div>
+				<canvas id="lineChart" width="400" height="260"></canvas>
+			</div>
+			<div class="ui segment" id="progressSegment">
+				<h3 id="paintProgressTitle">绘画进度 (0/0)</h3>
+				<div class="ui indicating progress" id="paintProgress">
+					<div class="bar">
+						<div class="progress"></div>
+					</div>
+				</div>
+			</div>
+			<!-- 绘画策略 -->
+			<div class="ui segment">
+				<div class="ui form">
+					<h3 class="ui header">绘画策略</h3>
+					<form id="strategy">
+						<div class="field">
+							<label>Token 使用策略</label>
+							<select id="strategy_cd" class="ui dropdown">
+								<option value="explosive" selected> Explosive </option>
+								<option value="amortized"> Amortized </option>
+								<option value="lock" disabled> Lock </option>
+							</select>
+						</div>
+						<div class="field">
+							<label>绘画顺序</label>
+							<select id="strategy_order" class="ui dropdown">
+								<option value="random" selected> Random </option>
+								<option value="ordered"> Ordered </option>
+							</select>
+						</div>
+						<div class="field">
+							<label>优先级</label>
+							<select id="strategy_priority" class="ui dropdown">
+								<option value="none" selected> None </option>
+								<option value="alpha"> Alpha </option>
+							</select>
+							<span id="alpha_info" class="info">*将读取图片的 Alpha 通道作为优先级。</span>
+						</div>
+					</form>
+				</div>
+			</div>
+			<!-- Token 列表 -->
+			<div class="ui segment">
+				<h3 class="ui header" id="tokenCount">Tokens</h3>
+				<div id="tokenList" class="ui relaxed list"></div>
+				<button id="readTokensBtn" class="ui button">重新加载 Token 列表</button>
+			</div>
+		</div>
+	</div>
+</div>
+<script>
+	toastr.options.progressBar = true;
+	toastr.options.newestOnTop = false;
+	toastr.options.timeOut = 2000;
+	document.addEventListener('DOMContentLoaded', () => {
+
+		const imageUrl = '/heatmap.png';
+		const $imageElement = $('#heatmap');
+
+		function updateImage() {
+			$.ajax({
+				url: `${imageUrl}?timestamp=${Date.now()}`,
+				method: 'GET',
+				xhrFields: {
+					responseType: 'blob'
+				},
+				success: function (blob) {
+					const objectUrl = URL.createObjectURL(blob);
+					$imageElement.attr('src', objectUrl);
+					const previousUrl = $imageElement.data('previousUrl');
+					if (previousUrl) {
+						URL.revokeObjectURL(previousUrl);
+					}
+					$imageElement.data('previousUrl', objectUrl);
+				},
+				error: function () {
+					$imageElement.attr('alt', '热力图加载失败');
+				}
+			});
+		}
+
+		updateImage();
+		setInterval(updateImage, 2000);
+		$("#imagePath").dropdown();
+		$("#strategy_cd").dropdown();
+		$("#strategy_order").dropdown();
+		$("#strategy_priority").dropdown();
+
+		$("#strategy_priority").on('change', (event) => {
+			const val = event.target.value;
+			if (val == 'alpha') 
+				$('#alpha_info').show();
+			else 
+				$('#alpha_info').hide();
+			}
+		);
+		/*
+		$("#strategy_cd").on('change', (event) => {
+			const val = event.target.value;
+			if (val == 'explosive') $('#progressSegment').hide();
+			else $('#progressSegment').show();
+		});
+		*/
+	});
+</script>
+{% include 'footer.njk' %}

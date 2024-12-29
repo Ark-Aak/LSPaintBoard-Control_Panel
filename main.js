@@ -80,14 +80,14 @@ app.post('/api/upload-image', upload.single('image'), async (req, res) => {
 nunjucks.configure(path.join(__dirname, 'views'), {
 	autoescape: true,
 	express: app,
-	noCache: true,
+	noCache: true
 });
 
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
 
 app.get('/', (req, res) => {
-	res.render('index.html');
+	res.render('index.njk');
 });
 
 import { createCanvas } from 'canvas';
