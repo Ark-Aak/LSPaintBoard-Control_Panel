@@ -662,6 +662,10 @@ async function SdrawTask(imagePath, startX, startY) {
 		}
 	}
 
+	function isSame(realPixel, correctPixel) {
+		return calculateColorDistance(realPixel, correctPixel) <= info.sim;
+	}
+
 	async function loadBoard() {
 		// 加载绘版上的错误像素
 		for (let y = 0; y < 600; y++) {
@@ -670,8 +674,8 @@ async function SdrawTask(imagePath, startX, startY) {
 				if (y < yL || y > yR) continue;
 				const pixel = board[y][x];
 				const realPixel = getPixelAt(x - xL, y - yL);
-				if (calculateColorDistance(pixel, realPixel) <= info.sim) continue;
-				pointQueue.push({ x: x - xL, y: y - yL });
+				if (isSame(pixel, realPixel)) continue;
+				pointQueue.push({ x: x - xL, y: y - yL, rx: y, ry: x });
 			}
 		}
 	}
@@ -682,7 +686,7 @@ async function SdrawTask(imagePath, startX, startY) {
 		let realX = x - startX, realY = y - startY;
 		const realPixel = { r, g, b };
 		const correctPixel = getPixelAt(realX, realY);
-		if (calculateColorDistance(realPixel, correctPixel) <= info.sim) {
+		if (isSame(realPixel, correctPixel)) {
 			return;
 		}
 		// const tk = await getNextToken();
@@ -721,6 +725,10 @@ async function SdrawTask(imagePath, startX, startY) {
 		queuePos = 0;
 		for (let pos of pointQueue) {
 			const pixel = getPixelAt(pos.x, pos.y);
+			if (isSame(board[pos.rx][pos.ry], pixel)) {
+				queuePos += 1;
+				continue;
+			}
 			const tk = await getNextToken();
 			paint(tk.uid, tk.token, pixel.r, pixel.g, pixel.b, pos.x + startX, pos.y + startY);
 			if (stopDrawing) {
