@@ -261,17 +261,17 @@ let coloredCnt = 0;
 let queueTotal = 0, queuePos = 0;
 
 setInterval(() => {
-	let paintRate = paintCnt / 3.0;
-	let attackRate = attackCnt / 3.0;
-	let recieveRate = recieveCnt / 3.0;
-	let coloredRate = coloredCnt / 3.0;
+	let paintRate = paintCnt / 1.0;
+	let attackRate = attackCnt / 1.0;
+	let recieveRate = recieveCnt / 1.0;
+	let coloredRate = coloredCnt / 1.0;
 	const buffer = ws.bufferedAmount;
 	attackCnt = 0;
 	paintCnt = 0;
 	recieveCnt = 0;
 	coloredCnt = 0;
 	reportMsg(JSON.stringify({ type: 'data_view', paintRate, attackRate, recieveRate, coloredRate, buffer, queueTotal, queuePos }));
-}, 3000);
+}, 1000);
 
 setInterval(() => {
 	reportMsg(JSON.stringify({ type: 'heatlist', data: generateHeatmap() }));

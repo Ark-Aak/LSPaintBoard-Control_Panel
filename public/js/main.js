@@ -16,7 +16,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 	const reportSocket = new WebSocket(`ws://${window.location.hostname}:3002`);
 	const ctx = document.getElementById('lineChart').getContext('2d');
 	let chartdata = {
-		labels: [-30, -27, -24, -21, -18, -15, -12, -9, -6, -3, 0],
+		labels: [-10, -9, -8, -7, -6, -5, -4, -3, -2, -1, 0],
 		datasets: [
 			{
 				label: '着色速率',
@@ -160,12 +160,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 		}
 	}
 
-	let initalData;
-
 	async function getInfo() {
-		if (initalData) return initalData;
-		initalData = (await fetch('/api/getinfo')).json();
-		return initalData;
+		return (await fetch('/api/getinfo')).json();
 	}
 
 	async function fetchTokens() {
