@@ -18,8 +18,8 @@ const PORT = 3000;
 const WEBPORT = 3001;
 const DRAWPORT = 3002;
 
-const WS_URL = 'wss://api.paintboard.ayakacraft.com:32767/api/paintboard/ws';
-const BASE_URL = 'https://api.paintboard.ayakacraft.com:32767/api';
+const WS_URL = 'wss://paintboard.luogu.me/api/paintboard/ws';
+const BASE_URL = 'https://paintboard.luogu.me/api';
 // const WS_URL = 'ws://localhost:32767/api/paintboard/ws';
 // const BASE_URL = 'http://localhost:32767/api';
 const TOKEN_FILE = './tokens.txt';
@@ -505,7 +505,7 @@ app.post('/api/paintboard/token', async (req, res) => {
 		return res.status(400).send(errorMessage);
 	}
 	try {
-		const body = JSON.stringify({ uid: parseInt(uid), paste });
+		const body = JSON.stringify({ uid: parseInt(uid), access_key: paste });
 		const response = await fetch(`${BASE_URL}/auth/gettoken`, {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
