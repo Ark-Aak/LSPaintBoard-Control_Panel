@@ -201,6 +201,15 @@
 				$('#alpha_info').hide();
 			}
 		);
+
+		$("#strategy_counterattack").on('change', (event) => {
+			const val = event.target.value;
+			if (val == 'immediate') 
+				$('#counterattack_info').show();
+			else 
+				$('#counterattack_info').hide();
+			}
+		);
 		/*
 		$("#strategy_cd").on('change', (event) => {
 			const val = event.target.value;
