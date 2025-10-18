@@ -133,6 +133,14 @@
 							</select>
 							<span id="alpha_info" class="info">*将读取图片的 Alpha 通道作为优先级。</span>
 						</div>
+						<div class="field">
+							<label>反击策略</label>
+							<select id="strategy_counterattack" class="ui dropdown">
+								<option value="none" selected> None </option>
+								<option value="immediate"> Immediate </option>
+							</select>
+							<span id="counterattack_info" class="info">*立即反击被攻击的像素。</span>
+						</div>
 					</form>
 				</div>
 			</div>
@@ -183,6 +191,7 @@
 		$("#strategy_cd").dropdown();
 		$("#strategy_order").dropdown();
 		$("#strategy_priority").dropdown();
+		$("#strategy_counterattack").dropdown();
 
 		$("#strategy_priority").on('change', (event) => {
 			const val = event.target.value;

@@ -366,6 +366,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 	bindStrategyApi('cd');
 	bindStrategyApi('order');
 	bindStrategyApi('priority');
+	bindStrategyApi('counterattack');
 
 	async function initStrategySelect(name) {
 		const val = (await getInfo());
@@ -376,6 +377,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 	await initStrategySelect('cd');
 	await initStrategySelect('order');
 	await initStrategySelect('priority');
+	await initStrategySelect('counterattack');
 
 	async function initInputBox(name) {
 		$('#' + name).val((await getInfo())[name]);
