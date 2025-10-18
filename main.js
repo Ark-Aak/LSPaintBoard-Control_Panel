@@ -533,7 +533,7 @@ app.post('/api/paintboard/token', async (req, res) => {
 
 let fTokens = [];
 let idx = 0;
-let info = { fmax: 0, sim: 5, mod: 30000, strategy: { cd: 'explosive', order: 'random', priority: 'none' } };
+let info = { fmax: 0, sim: 5, mod: 30000, strategy: { cd: 'explosive', order: 'random', priority: 'none', counterattack: 'none' } };
 
 async function getNextToken() {
 	if (info.strategy.cd === 'amortized') await delay(Math.ceil(info.mod / info.fmax));
@@ -573,6 +573,7 @@ function createStrategyApi(name) {
 createStrategyApi('cd');
 createStrategyApi('order');
 createStrategyApi('priority');
+createStrategyApi('counterattack');
 
 app.get('/api/tokens', (req, res) => {
 	try {
@@ -616,7 +617,57 @@ function delay(ms) {
 	return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-let pointQueue = [];
+// PriorityQueue implementation with deduplication support
+class PriorityQueue {
+	constructor() {
+		this.items = [];
+		this.keySet = new Set(); // For deduplication based on x,y coordinates
+	}
+
+	_makeKey(x, y) {
+		return `${x},${y}`;
+	}
+
+	push(item) {
+		const key = this._makeKey(item.x, item.y);
+		if (this.keySet.has(key)) {
+			return false; // Already exists, skip
+		}
+		this.items.push(item);
+		this.keySet.add(key);
+		return true;
+	}
+
+	get length() {
+		return this.items.length;
+	}
+
+	clear() {
+		this.items = [];
+		this.keySet.clear();
+	}
+
+	sort(compareFn) {
+		this.items.sort(compareFn);
+	}
+
+	shuffle() {
+		for (let i = this.items.length - 1; i > 0; i--) {
+			const j = Math.floor(Math.random() * (i + 1));
+			[this.items[i], this.items[j]] = [this.items[j], this.items[i]];
+		}
+	}
+
+	[Symbol.iterator]() {
+		return this.items[Symbol.iterator]();
+	}
+
+	toArray() {
+		return this.items;
+	}
+}
+
+let pointQueue = new PriorityQueue();
 
 async function SdrawTask(imagePath, startX, startY) {
 	// 绘画任务的主函数
@@ -626,7 +677,7 @@ async function SdrawTask(imagePath, startX, startY) {
 	isDrawing = true;
 	stopDrawing = false;
 
-	pointQueue = [];
+	pointQueue = new PriorityQueue();
 
 	const image = sharp(imagePath);
 	const { width, height, channels } = await image.metadata();
@@ -655,12 +706,7 @@ async function SdrawTask(imagePath, startX, startY) {
 		return distance;
 	}
 
-	function shuffleArray(array) {
-		for (let i = array.length - 1; i > 0; i--) {
-			const j = Math.floor(Math.random() * (i + 1));
-			[array[i], array[j]] = [array[j], array[i]];
-		}
-	}
+
 
 	function isSame(realPixel, correctPixel) {
 		return calculateColorDistance(realPixel, correctPixel) <= info.sim;
@@ -689,9 +735,14 @@ async function SdrawTask(imagePath, startX, startY) {
 		if (isSame(realPixel, correctPixel)) {
 			return;
 		}
-		// const tk = await getNextToken();
-		// paint(tk.uid, tk.token, correctPixel.r, correctPixel.g, correctPixel.b, x, y);
 		attackCnt++;
+		// Add to queue with deduplication
+		pointQueue.push({ x: realX, y: realY, rx: y, ry: x });
+		// Immediate counter-attack if strategy is set
+		if (info.strategy.counterattack === 'immediate') {
+			const tk = await getNextToken();
+			paint(tk.uid, tk.token, correctPixel.r, correctPixel.g, correctPixel.b, x, y);
+		}
 	}
 
 	function getRandomInt(min, max) {
@@ -716,7 +767,11 @@ async function SdrawTask(imagePath, startX, startY) {
 			return;
 		}
 		await loadBoard();
-		if (info.strategy.order === 'random') shuffleArray(pointQueue);
+		// Apply ordering strategy
+		if (info.strategy.order === 'random') {
+			pointQueue.shuffle();
+		}
+		// Apply priority - alpha priority takes precedence over order
 		if (info.strategy.priority === 'alpha' && channels === 4) {
 			pointQueue.sort((a, b) => getPixelAt(b.x, b.y).a - getPixelAt(a.x, a.y).a);
 		}
@@ -741,7 +796,7 @@ async function SdrawTask(imagePath, startX, startY) {
 			broadcastLog(`压力过小，等待中...`);
 			await delay(3000);
 		}
-		pointQueue = [];
+		pointQueue.clear();
 		setImmediate(drawTask); // 重新启动绘画任务
 	};
 	drawTask();
@@ -784,7 +839,7 @@ app.post('/api/stop-draw', (req, res) => {
 	}
 	processAttack = null;
 	stopDrawing = true;
-	pointQueue = [];
+	pointQueue.clear();
 	res.json({ message: '正在停止绘画任务。' });
 });
 
