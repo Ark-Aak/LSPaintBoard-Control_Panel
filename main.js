@@ -617,15 +617,75 @@ function delay(ms) {
 	return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// PriorityQueue implementation with deduplication support
+// Heap-based PriorityQueue implementation with deduplication support
 class PriorityQueue {
-	constructor() {
-		this.items = [];
+	constructor(compareFn = null) {
+		this.heap = [];
 		this.keySet = new Set(); // For deduplication based on x,y coordinates
+		this.compareFn = compareFn; // Custom comparator for priority
 	}
 
 	_makeKey(x, y) {
 		return `${x},${y}`;
+	}
+
+	_parent(i) {
+		return Math.floor((i - 1) / 2);
+	}
+
+	_leftChild(i) {
+		return 2 * i + 1;
+	}
+
+	_rightChild(i) {
+		return 2 * i + 2;
+	}
+
+	_swap(i, j) {
+		[this.heap[i], this.heap[j]] = [this.heap[j], this.heap[i]];
+	}
+
+	_compare(a, b) {
+		if (this.compareFn) {
+			return this.compareFn(a, b) > 0; // Use custom comparator (higher priority first)
+		}
+		// Default: no priority, maintain insertion order (FIFO-like behavior)
+		return false;
+	}
+
+	_heapifyUp(index) {
+		while (index > 0) {
+			const parent = this._parent(index);
+			if (this._compare(this.heap[index], this.heap[parent])) {
+				this._swap(index, parent);
+				index = parent;
+			} else {
+				break;
+			}
+		}
+	}
+
+	_heapifyDown(index) {
+		while (true) {
+			let largest = index;
+			const left = this._leftChild(index);
+			const right = this._rightChild(index);
+
+			if (left < this.heap.length && this._compare(this.heap[left], this.heap[largest])) {
+				largest = left;
+			}
+
+			if (right < this.heap.length && this._compare(this.heap[right], this.heap[largest])) {
+				largest = right;
+			}
+
+			if (largest !== index) {
+				this._swap(index, largest);
+				index = largest;
+			} else {
+				break;
+			}
+		}
 	}
 
 	push(item) {
@@ -633,37 +693,57 @@ class PriorityQueue {
 		if (this.keySet.has(key)) {
 			return false; // Already exists, skip
 		}
-		this.items.push(item);
+		this.heap.push(item);
 		this.keySet.add(key);
+		this._heapifyUp(this.heap.length - 1);
 		return true;
 	}
 
+	pop() {
+		if (this.heap.length === 0) {
+			return null;
+		}
+		if (this.heap.length === 1) {
+			const item = this.heap.pop();
+			this.keySet.delete(this._makeKey(item.x, item.y));
+			return item;
+		}
+		const top = this.heap[0];
+		this.heap[0] = this.heap.pop();
+		this.keySet.delete(this._makeKey(top.x, top.y));
+		this._heapifyDown(0);
+		return top;
+	}
+
+	peek() {
+		return this.heap.length > 0 ? this.heap[0] : null;
+	}
+
 	get length() {
-		return this.items.length;
+		return this.heap.length;
 	}
 
 	clear() {
-		this.items = [];
+		this.heap = [];
 		this.keySet.clear();
 	}
 
-	sort(compareFn) {
-		this.items.sort(compareFn);
+	isEmpty() {
+		return this.heap.length === 0;
 	}
 
-	shuffle() {
-		for (let i = this.items.length - 1; i > 0; i--) {
-			const j = Math.floor(Math.random() * (i + 1));
-			[this.items[i], this.items[j]] = [this.items[j], this.items[i]];
+	setComparator(compareFn) {
+		this.compareFn = compareFn;
+		// Rebuild heap with new comparator
+		const items = [...this.heap];
+		this.heap = [];
+		for (const item of items) {
+			this.heap.push(item);
 		}
-	}
-
-	[Symbol.iterator]() {
-		return this.items[Symbol.iterator]();
-	}
-
-	toArray() {
-		return this.items;
+		// Heapify from bottom up
+		for (let i = Math.floor(this.heap.length / 2) - 1; i >= 0; i--) {
+			this._heapifyDown(i);
+		}
 	}
 }
 
@@ -684,7 +764,9 @@ async function SdrawTask(imagePath, startX, startY) {
 	const pixels = await image.raw().toBuffer();
 	const xL = startX, xR = startX + width - 1;
 	const yL = startY, yR = startY + height - 1;
+	const totalPixels = width * height; // Total pixels in the image
 	broadcastLog(`图像位置: [(${xL}, ${yL}), (${xR}, ${yR})]`);
+	broadcastLog(`总像素数: ${totalPixels}`);
 
 	const getPixelAt = (x, y) => {
 		const index = (y * width + x) * channels; // 每个像素占 channels 个字节（RGB/RGBA）
@@ -726,6 +808,15 @@ async function SdrawTask(imagePath, startX, startY) {
 		}
 	}
 
+	// Set up priority comparator based on strategy
+	function updatePriorityComparator() {
+		if (info.strategy.priority === 'alpha' && channels === 4) {
+			pointQueue.setComparator((a, b) => getPixelAt(b.x, b.y).a - getPixelAt(a.x, a.y).a);
+		} else {
+			pointQueue.setComparator(null); // No priority, FIFO-like
+		}
+	}
+
 	processAttack = async (x, y, r, g, b) => {
 		if (x < xL || x > xR) return;
 		if (y < yL || y > yR) return;
@@ -738,11 +829,6 @@ async function SdrawTask(imagePath, startX, startY) {
 		attackCnt++;
 		// Add to queue with deduplication
 		pointQueue.push({ x: realX, y: realY, rx: y, ry: x });
-		// Immediate counter-attack if strategy is set
-		if (info.strategy.counterattack === 'immediate') {
-			const tk = await getNextToken();
-			paint(tk.uid, tk.token, correctPixel.r, correctPixel.g, correctPixel.b, x, y);
-		}
 	}
 
 	function getRandomInt(min, max) {
@@ -766,38 +852,38 @@ async function SdrawTask(imagePath, startX, startY) {
 			processStop();
 			return;
 		}
+		
+		// Initial load
 		await loadBoard();
-		// Apply ordering strategy
-		if (info.strategy.order === 'random') {
-			pointQueue.shuffle();
-		}
-		// Apply priority - alpha priority takes precedence over order
-		if (info.strategy.priority === 'alpha' && channels === 4) {
-			pointQueue.sort((a, b) => getPixelAt(b.x, b.y).a - getPixelAt(a.x, a.y).a);
-		}
-		broadcastLog(`队列已刷新，目前队列长度: ${pointQueue.length}。`);
-		queueTotal = pointQueue.length;
-		queuePos = 0;
-		for (let pos of pointQueue) {
-			const pixel = getPixelAt(pos.x, pos.y);
-			if (isSame(board[pos.rx][pos.ry], pixel)) {
-				queuePos += 1;
+		updatePriorityComparator();
+		broadcastLog(`队列初始化完成，目前队列长度: ${pointQueue.length}。`);
+		
+		// Continuous drawing loop
+		while (!stopDrawing) {
+			// Update progress: totalPixels - remaining queue size
+			queueTotal = totalPixels;
+			queuePos = totalPixels - pointQueue.length;
+			
+			if (pointQueue.isEmpty()) {
+				// No pixels to paint, wait a bit
+				broadcastLog(`队列为空，等待中...`);
+				await delay(3000);
 				continue;
 			}
-			const tk = await getNextToken();
-			paint(tk.uid, tk.token, pixel.r, pixel.g, pixel.b, pos.x + startX, pos.y + startY);
-			if (stopDrawing) {
-				processStop();
-				return;
+			
+			// Pop the highest priority item from the heap
+			const pos = pointQueue.pop();
+			if (!pos) continue;
+			
+			const pixel = getPixelAt(pos.x, pos.y);
+			// Check if still needs painting
+			if (!isSame(board[pos.rx][pos.ry], pixel)) {
+				const tk = await getNextToken();
+				paint(tk.uid, tk.token, pixel.r, pixel.g, pixel.b, pos.x + startX, pos.y + startY);
 			}
-			queuePos += 1;
 		}
-		if (pointQueue.length <= info.fmax) {
-			broadcastLog(`压力过小，等待中...`);
-			await delay(3000);
-		}
-		pointQueue.clear();
-		setImmediate(drawTask); // 重新启动绘画任务
+		
+		processStop();
 	};
 	drawTask();
 }
