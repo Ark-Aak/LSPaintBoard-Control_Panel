@@ -322,7 +322,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 	$('#slider-sim').range({
 		min: 0,
-		max: 20,
+		max: 10,
 		start: (await getInfo()).sim,
 		step: 0.05,
 		onChange: async function (value) {
@@ -338,9 +338,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 	$('#slider-mod').range({
 		min: 0,
-		max: 60000,
+		max: 30000,
 		start: (await getInfo()).mod,
-		step: 1000,
+		step: 100,
 		onChange: async function (value) {
 			const simValue = document.getElementById('modValue');
 			simValue.innerText = `绘版 CD (${value})`;
